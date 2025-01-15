@@ -166,40 +166,45 @@ print(X_encoded)
 
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import accuracy_score, precision_score
+from sklearn.metrics import accuracy_score, precision_score,recall_score,f1_score
 
-# Separiamo i nostri dati in dati di training e dati di test
-# Specifichiamo la proporzione fra i due con test_size; in questo caso abbiamo impostato il training set al 90% e il test set al 10%
-cross_validation= KFold(n_splits=10, shuffle= True, random_state= 1)
-X_train, X_test, y_train, y_test = train_test_split(X_encoded, y_variable, test_size=0.05, random_state=42)
 
-# Utilizziamo il training set per addestrare il modello
-model = DecisionTreeClassifier()
-model.fit(X_train, y_train)
+# Specifichiamo la proporzione fra i due con test_size; in questo caso abbiamo impostato il training set al 80% e il test set al 10%
+X_train, X_test, y_train, y_test = train_test_split(X_encoded, y_variable, test_size=0.2, random_state=42)
 
-from sklearn.metrics import accuracy_score, precision_score, f1_score, recall_score
+#ora definiamo gli hyperparameters
+parameters = {"max_depth": range(3,10)}
+grid= GridSearchCV(tree.DecisionTreeClassifier(),parameters, n_jobs=4, error_score='raise')
+grid.fit(X_train, y_train)
 
-y_pred = model.predict(X_test)
+#stampiano i migliori hyperparameter
+print(grid.best_params_)
+
+#modelliamo un modello usando i migliri hyperparameter
+final_model= tree.DecisionTreeClassifier(max_depth=grid.best_params_['max_depth'])
+final_model.fit(X_train, y_train)
+
+y_pred= final_model.predict(X_test)
 
 accuracy = accuracy_score(y_test, y_pred)
-precision = precision_score(y_test, y_pred)
+precision_score= precision_score(y_test, y_pred)
+recall_score= recall_score(y_test, y_pred)
 f1_score= f1_score(y_test, y_pred)
-recall= recall_score(y_test, y_pred)
 
-print(f"Accuracy del modello sul test set: {accuracy:.2f}")
-print(f"Precison del modello sul test set: {precision:.2f}")
-print(f"F1 del modello sul test set: {f1_score:.2f}")
-print(f"recall del modello sul test set: {recall:.2f}")
+#valutiamo la performance del modello finale
+print("scores del testGrid accuracy: ", accuracy,"precision: ", precision_score,"recall: ", recall_score,"f1_score: ", f1_score)
 
-#Come vediamo il decision tree ha un accuracy e
-# precision di 1 che è troppo alta quindi probabilmente non è adatto come modello di ML per questo dataset
-# forse probabilmente quindi andiamo a valutare altri parametri per capire come si comporta il modello
+#ora che abbiamo accertato che la migliore profondità sia 9 andiamo ad applicare la cross validation per accertarci
+#che si abbiano risultati simili per più fold
+from sklearn.model_selection import cross_validate
 
-parameters = {"max_depth": range(3,20)}
-clf= GridSearchCV(tree.DecisionTreeClassifier(),parameters, n_jobs=4, error_score='raise')
-clf.fit(X=X_encoded, y=y_variable)
-tree_model= clf.best_estimator_
-print (clf.best_score_, clf.best_params_)
+clf=tree.DecisionTreeClassifier(max_depth=grid.best_params_['max_depth'])
+scoring=['precision_macro','recall_macro','f1_macro']
+scores= cross_validate(clf, X_encoded, y_variable,scoring=scoring, cv=10)
+print(scores['test_precision_macro'].mean(),"precision con una deviazione standard:",scores['test_recall_macro'].std())
+print(scores['test_recall_macro'].mean(),"recall con una deviazione standard:",scores['test_recall_macro'].std())
+print(scores['test_f1_macro'].mean(),"f1 con una deviazione standard:",scores['test_f1_macro'].std())
+
 
 
 
