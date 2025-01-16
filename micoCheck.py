@@ -3,6 +3,7 @@ import numpy as np
 from scipy import stats
 import seaborn as sns
 import matplotlib.pyplot as plt
+from sklearn.ensemble import RandomForestClassifier
 from statsmodels.graphics.mosaicplot import mosaic
 
 
@@ -67,6 +68,19 @@ for column in categorical_columns:
 
 #non andiamo a ragruppare nessuna gategoria visto che la maggior parte hanno un bel po' di elementi
 
+
+#valutazione distribuzione variabile target
+# Calculate counts for the pie chart and add labels
+class_counts = dataset_cleaned['class'].value_counts().sort_index()
+labels = ["Edible", "Poisonous"]
+
+plt.figure(figsize=(6, 6))
+plt.pie(class_counts, labels=labels,
+        autopct='%1.1f%%', startangle=90)
+plt.title('Distribution of Classes')
+plt.axis('equal')  # Equal aspect ratio ensures that pie is drawn as a circle.
+
+plt.show()
 #ora andiamo a valutare la simmestria dei valori numerici delle colonne numeriche
 print("La simmetria delle colonne:")
 print (dataset_cleaned[numerical_columns].skew())
@@ -180,7 +194,7 @@ grid.fit(X_train, y_train)
 #stampiano i migliori hyperparameter
 print(grid.best_params_)
 
-#modelliamo un modello usando i migliri hyperparameter
+#modelliamo un modello usando i migliori hyperparameter
 final_model= tree.DecisionTreeClassifier(max_depth=grid.best_params_['max_depth'])
 final_model.fit(X_train, y_train)
 
@@ -191,8 +205,15 @@ precision_score= precision_score(y_test, y_pred)
 recall_score= recall_score(y_test, y_pred)
 f1_score= f1_score(y_test, y_pred)
 
+#visualizzazione albero
+fig, axes = plt.subplots(nrows = 1, ncols = 1, figsize = (4,4), dpi = 800)
+
+tree.plot_tree(final_model)
+fig.show()
+
 #valutiamo la performance del modello finale
 print("scores del testGrid accuracy: ", accuracy,"precision: ", precision_score,"recall: ", recall_score,"f1_score: ", f1_score)
+
 
 #ora che abbiamo accertato che la migliore profondità sia 9 andiamo ad applicare la cross validation per accertarci
 #che si abbiano risultati simili per più fold
@@ -205,6 +226,20 @@ print(scores['test_precision_macro'].mean(),"precision con una deviazione standa
 print(scores['test_recall_macro'].mean(),"recall con una deviazione standard:",scores['test_recall_macro'].std())
 print(scores['test_f1_macro'].mean(),"f1 con una deviazione standard:",scores['test_f1_macro'].std())
 
+from sklearn.metrics import accuracy_score, precision_score, f1_score, recall_score
+#prova Random Forest
+rf=RandomForestClassifier()
+rf.fit(X_train, y_train)
+
+y_pred= rf.predict(X_test)
+accuracyRf = accuracy_score(y_test, y_pred)
+precision_scoreRf= precision_score(y_test, y_pred)
+recall_scoreRf= recall_score(y_test, y_pred)
+f1_scoreRf= f1_score(y_test, y_pred)
+print("random forest accuracy",accuracyRf)
+print("random forest precision",precision_scoreRf)
+print("random forest recall",recall_scoreRf)
+print("random forest f1",f1_scoreRf)
 
 
 
