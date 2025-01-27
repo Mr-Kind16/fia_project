@@ -1,164 +1,59 @@
-import pandas as pd
-import numpy as np
-from scipy import stats
-import seaborn as sns
-import matplotlib.pyplot as plt
-from sklearn.ensemble import RandomForestClassifier
-from statsmodels.graphics.mosaicplot import mosaic
-
-
 import warnings
+
+import pandas as pd
+
+from data_cleaning_secondary import data_cleaning
+
 warnings.filterwarnings("ignore")
 
-from sklearn.model_selection import GridSearchCV
 from sklearn import tree
 
+from sklearn.model_selection import GridSearchCV
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
 from sklearn.pipeline import Pipeline
-from sklearn.compose import ColumnTransformer
-from sklearn.preprocessing import StandardScaler, OrdinalEncoder, FunctionTransformer, LabelEncoder
-from sklearn.model_selection import train_test_split, GridSearchCV, KFold
-from sklearn.metrics import matthews_corrcoef
+from sklearn.metrics import confusion_matrix, classification_report, accuracy_score
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.preprocessing import StandardScaler
+
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import accuracy_score, classification_report
+from sklearn.preprocessing import OneHotEncoder, LabelEncoder
+
+
+
+def visualize_metrics(model, X_test, y_test):
+    # Previsione sul set di test
+    y_pred = model.predict(X_test)
+
+    # Calcolare le metriche
+    accuracy = accuracy_score(y_test, y_pred)
+    print(f"Accuracy: {accuracy:.2f}")
+
+    # Rapporto di classificazione (Precision, Recall, F1-score)
+    print("\nClassification Report:")
+    print(classification_report(y_test, y_pred))
+
+    # Matrice di confusione
+    cm = confusion_matrix(y_test, y_pred)
+    print("\nConfusion Matrix:")
+    print(cm)
+
+    # Visualizzare la matrice di confusione come una heatmap
+    plt.figure(figsize=(6, 5))
+    sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', xticklabels=np.unique(y_test), yticklabels=np.unique(y_test))
+    plt.title("Confusion Matrix")
+    plt.xlabel("Predicted")
+    plt.ylabel("True")
+    plt.show()
+
+
 
 #andiamo a leggere il dataset dal file csv
 dataset= pd.read_csv("secondary_data_shuffled.csv",delimiter=";")
-print (dataset.head())
-
-#ora andiamo a vedere la distribuzione di funghi velenosi e non e stampiamo la quantità di valori nulli per ogni colonna
-print("la quantità di funghi velenosi è:",len(dataset[(dataset['class'] == 'p')]))
-print("la quantità di funghi commestibili è:",len(dataset[(dataset['class'] == 'e')]))
-
-print("il numero totale di righe è:",len(dataset))
-
-nan_mask= dataset.isna()
-nan_count= nan_mask.sum()
-print(nan_count)
-
-#visualizzazione dei valori mancanti tramite heatmap
-plt.figure(figsize=(18,12))
-plt.title("Visualizing Missing Values")
-graf=sns.heatmap(dataset.isnull(), cbar=False, cmap=sns.color_palette("Spectral_r", n_colors=13), yticklabels=False)
-
-#andiamo ad eliminare le colonne che hanno la maggior parte di valori nulli
-dataset_cleaned= dataset.copy()
-dataset_cleaned = dataset_cleaned.drop('stem-root', axis=1)
-dataset_cleaned = dataset_cleaned.drop('veil-type', axis=1)
-dataset_cleaned = dataset_cleaned.drop('veil-color', axis=1)
-dataset_cleaned = dataset_cleaned.drop('spore-print-color', axis=1)
-
-#Ora andiamo a isolare vari tipi di colonne da così poter larovare in maniera piú agevole
-
-target_column= 'class'
-#andiamo a prendere tutte le colonne categoriche
-categorical_columns= dataset_cleaned.select_dtypes(include=['object']).columns.drop(target_column)
-
-#andiamo a prendere tutte le colonne numeriche
-numerical_columns= dataset_cleaned.select_dtypes(exclude=['object']).columns.drop(target_column, errors='ignore')
-
-print("target:", target_column)
-print("\ncategorical:", categorical_columns)
-print("\nnumerical:",numerical_columns)
-
-#ora andiamo a vedere quante categorie uniche ha ogni colonna
-for column in categorical_columns:
-  num_unique= dataset_cleaned[column].nunique()
-  print(f"'{column}' ha {num_unique} categorie uniche")
-
-for column in categorical_columns:
-  print(f"\nTop value counts in {column}:\n{dataset_cleaned[column].value_counts().head(10)}")
-
-#non andiamo a ragruppare nessuna gategoria visto che la maggior parte hanno un bel po' di elementi
-
-
-#valutazione distribuzione variabile target
-# Calculate counts for the pie chart and add labels
-class_counts = dataset_cleaned['class'].value_counts().sort_index()
-labels = ["Edible", "Poisonous"]
-
-plt.figure(figsize=(6, 6))
-plt.pie(class_counts, labels=labels,
-        autopct='%1.1f%%', startangle=90)
-plt.title('Distribution of Classes')
-plt.axis('equal')  # Equal aspect ratio ensures that pie is drawn as a circle.
-
-plt.show()
-#ora andiamo a valutare la simmestria dei valori numerici delle colonne numeriche
-print("La simmetria delle colonne:")
-print (dataset_cleaned[numerical_columns].skew())
-
-#visto che sono tutti maggiori di 1 andiamo ad usare la mediana
-medians= dataset_cleaned[numerical_columns].median()
-
-dataset_cleaned[numerical_columns]= dataset_cleaned[numerical_columns].fillna(medians)
-
-#ora andiamo ad imputare i dati categorici andando a riempire gli spazi vuoti  con la categoria "unhnown"
-dataset_cleaned = dataset_cleaned.fillna("Unknown")
-dataset_cleaned= dataset_cleaned.drop_duplicates()
-
-#esplorazione delle feature per capire se ci sono pattern che ci possono aiutare
-plt.figure(figsize=(8, 15))
-
-for i, column in enumerate(numerical_columns):
-    plt.subplot(3, 1, i+1)
-    sns.histplot(data=dataset_cleaned, x=column, kde=True, bins=20)
-    plt.title(f'Distribution of {column}')
-    sns.despine()
-
-plt.tight_layout()
-plt.show()
-
-for column in categorical_columns:
-
-    filtered_data = dataset_cleaned.loc[dataset_cleaned[column] != 'Unknown']
-
-    plt.figure(figsize=(8, 5))
-    sns.countplot(data=filtered_data, x=column)
-    plt.title(f'Countplot of {column}')
-
-    plt.tight_layout()
-    plt.show()
-
-
-for column in numerical_columns:
-    plt.figure(figsize=(8, 6))
-    sns.violinplot(dataset_cleaned, x='class', y=column)
-    plt.title(f'Distribution of {column} by class')
-
-    plt.tight_layout()
-    plt.show()
-
-#una volta che siamo andati ad analizzare la distribuzione dei dati e abbiamo visto che sono presenti degli
-#out liers nei valori numerici andiamo ad eliminarli
-
-def removal_box_plot(df, column, threshold):
-  sns.boxplot(df[column])
-  plt.title(f'Original Box Plot of {column}')
-  plt.show()
-
-  removed_outliers = df[df[column] <= threshold]
-  df.drop(df[df[column] >= threshold].index, inplace=True)
-
-  sns.boxplot(removed_outliers[column])
-  plt.title(f'Box Plot without Outliers of {column}')
-  plt.show()
-  return removed_outliers
-
-
-threshold_value = 15
-
-no_outliers = removal_box_plot(dataset_cleaned, 'cap-diameter', threshold_value)
-
-threshold_value = 11
-
-no_outliers2 = removal_box_plot(dataset_cleaned, 'stem-height', threshold_value)
-
-threshold_value = 28
-
-no_outliers3 = removal_box_plot(dataset_cleaned, 'stem-width', threshold_value)
-
-#il valore del threshold lo siamo andati a decidere in modo individuale in base a come esano distribuiti i dati
-
-#ora andiamo a sostituire i valori della variabile target
-dataset_cleaned['class'].replace({'e': 0, 'p': 1}, inplace=True)
+dataset_cleaned= data_cleaning(dataset)
 
 #Ora andiamo a convertire tutte le variabili categoriche in valori numerici andando ad utilizzare One Hot Encoding
 from sklearn.preprocessing import OneHotEncoder
@@ -167,7 +62,7 @@ from sklearn.preprocessing import OneHotEncoder
 X_variables = dataset_cleaned[['cap-shape', 'cap-surface', 'cap-color', 'does-bruise-or-bleed',
        'gill-attachment', 'gill-spacing', 'gill-color',
        'stem-surface', 'stem-color',  'has-ring',
-       'ring-type', 'habitat', 'season','cap-diameter',
+        'habitat', 'season','cap-diameter',
                                'stem-height', 'stem-width']]
 y_variable = dataset_cleaned['class']
 
@@ -175,10 +70,8 @@ y_variable = dataset_cleaned['class']
 encoder = OneHotEncoder()
 X_encoded = encoder.fit_transform(X_variables)
 
-print(X_encoded)
 #Ora andiamo a fare il training del classificatore binario nello specifico un decision tree
 
-from sklearn.tree import DecisionTreeClassifier
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, precision_score,recall_score,f1_score
 
@@ -205,14 +98,29 @@ precision_score= precision_score(y_test, y_pred)
 recall_score= recall_score(y_test, y_pred)
 f1_score= f1_score(y_test, y_pred)
 
-#visualizzazione albero
-fig, axes = plt.subplots(nrows = 1, ncols = 1, figsize = (4,4), dpi = 800)
-
-tree.plot_tree(final_model)
-fig.show()
 
 #valutiamo la performance del modello finale
-print("scores del testGrid accuracy: ", accuracy,"precision: ", precision_score,"recall: ", recall_score,"f1_score: ", f1_score)
+visualize_metrics(final_model, X_test, y_test)
+
+# Convert target variable labels to strings to avoid TypeError in plot_tree
+final_model_classes = [str(cls) for cls in final_model.classes_]  # Convert class names to string
+
+# Plot the decision tree
+from sklearn.tree import plot_tree
+
+# Get encoded feature names
+feature_names = encoder.get_feature_names_out(X_variables.columns)
+
+plt.figure(figsize=(20, 10))  # Adjust figure size as needed
+plot_tree(
+    final_model,
+    feature_names=feature_names,  # Transformed feature names
+    class_names=final_model_classes,  # Ensure class names are strings
+    max_depth=3,  # Visualize up to depth 3
+    filled=True,
+    rounded=True
+)
+plt.show()
 
 
 #ora che abbiamo accertato che la migliore profondità sia 9 andiamo ad applicare la cross validation per accertarci
@@ -226,25 +134,48 @@ print(scores['test_precision_macro'].mean(),"precision con una deviazione standa
 print(scores['test_recall_macro'].mean(),"recall con una deviazione standard:",scores['test_recall_macro'].std())
 print(scores['test_f1_macro'].mean(),"f1 con una deviazione standard:",scores['test_f1_macro'].std())
 
-from sklearn.metrics import accuracy_score, precision_score, f1_score, recall_score
+
+
+
 #prova Random Forest
-rf=RandomForestClassifier()
-rf.fit(X_train, y_train)
+X_train, X_test, y_train, y_test = train_test_split(X_encoded, y_variable, test_size=0.2, random_state=42)
 
-y_pred= rf.predict(X_test)
-accuracyRf = accuracy_score(y_test, y_pred)
-precision_scoreRf= precision_score(y_test, y_pred)
-recall_scoreRf= recall_score(y_test, y_pred)
-f1_scoreRf= f1_score(y_test, y_pred)
-print("random forest accuracy",accuracyRf)
-print("random forest precision",precision_scoreRf)
-print("random forest recall",recall_scoreRf)
-print("random forest f1",f1_scoreRf)
+rf_model = RandomForestClassifier(n_estimators=100, random_state=42, max_depth=15)  # Using 100 trees
+rf_model.fit(X_train, y_train)
 
+# Step 6: Make predictions using the trained model
+y_pred = rf_model.predict(X_test)
 
+print("metriche dell random forest")
+# Step 7: Evaluate the model performance
+accuracy = accuracy_score(y_test, y_pred)
+print(f"Accuracy: {accuracy * 100:.2f}%")
 
+print("\nClassification Report:")
+print(classification_report(y_test, y_pred))
 
+feature_importances = rf_model.feature_importances_
 
+# Combine feature importances with the feature names
+feature_names = encoder.get_feature_names_out(X_variables.columns)  # Get the encoded feature names
+importance_df = pd.DataFrame({'Feature': feature_names, 'Importance': feature_importances})
+
+# Sort the features by importance (descending)
+importance_df = importance_df.sort_values(by='Importance', ascending=False)
+
+# Print the sorted feature importance
+print("\nFeature Importances:")
+print(importance_df.head(30))
+
+# Optional: Plot the feature importances for better visualization
+most_important = importance_df.head(30)  # Keep only the top feature
+plt.figure(figsize=(6, 6))
+sns.barplot(x=most_important['Importance'], y=most_important['Feature'])
+plt.title("Most Important Feature")
+plt.xlabel("Importance")
+plt.ylabel("Feature")
+plt.tight_layout()
+plt.show()
 
 
 
