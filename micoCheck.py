@@ -2,7 +2,7 @@ import warnings
 
 import pandas as pd
 
-from data_cleaning_secondary import data_cleaning
+from data_cleaning import data_cleaning
 
 warnings.filterwarnings("ignore")
 
